@@ -74,6 +74,27 @@
             flex-grow: 1; /* The map will fill the remaining vertical space */
             background-color: #333;
         }
+
+        /* Controls for time travel and animation */
+        #controls {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background-color: #2c2c2c;
+            border-top: 1px solid #444;
+        }
+
+        #hover-info {
+            position: absolute;
+            bottom: 1rem;
+            left: 1rem;
+            background-color: rgba(0, 0, 0, 0.6);
+            padding: 0.5rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
@@ -83,7 +104,13 @@
             <p>Visualizing the day/night terminator with Leaflet.js</p>
             <p id="datetime"></p>
         </header>
+        <div id="controls">
+            <input type="range" id="timeSlider" min="-8760" max="8760" value="0" step="1" style="flex:1">
+            <button id="playButton">Play</button>
+            <span id="sliderLabel">Now</span>
+        </div>
         <div id="map"></div>
+        <div id="hover-info" style="display:none"></div>
     </div>
 
     <!-- Leaflet JavaScript -->
@@ -95,6 +122,10 @@
     <script src="https://unpkg.com/@joergdietrich/leaflet.terminator@1.1.0/L.Terminator.js"></script>
     <!-- Plugin to draw text along polylines -->
     <script src="https://unpkg.com/leaflet-textpath@1.2.3/leaflet.textpath.js"></script>
+    <!-- SunCalc for sunrise/sunset calculations -->
+    <script src="https://unpkg.com/suncalc@1.9.0/suncalc.js"></script>
+    <!-- Timezone lookup -->
+    <script src="https://unpkg.com/tz-lookup@6.1.25/tz.js"></script>
 
     <script>
         // FIX: Replaced DOMContentLoaded with window.onload.
@@ -195,29 +226,101 @@
             drawLatitudeLine(tropicLat, '#ff5722', 'Tropic of Cancer');
             drawLatitudeLine(-tropicLat, '#ff5722', 'Tropic of Capricorn');
 
+            const timeSlider = document.getElementById('timeSlider');
+            const sliderLabel = document.getElementById('sliderLabel');
+            const playButton = document.getElementById('playButton');
+            const hoverInfo = document.getElementById('hover-info');
 
-            // 6. Create a function to update the map elements
-            // This function will be called repeatedly to create a real-time effect.
-            function updateTerminatorAndSun() {
-                // Update the terminator to the current time
-                terminator.setTime();
+            let animationInterval = null;
 
-                // Compute the current subsolar point
-                const sunLatLng = getSubSolarPoint();
-                
-                // Update the sun icon's position on the map
-                sunIcon.setLatLng(sunLatLng);
+            const cities = [
+                { name: 'New York', coord: [40.7128, -74.0060] },
+                { name: 'London', coord: [51.5074, -0.1278] },
+                { name: 'Tokyo', coord: [35.6895, 139.6917] },
+                { name: 'Sydney', coord: [-33.8688, 151.2093] },
+                { name: 'Cairo', coord: [30.0444, 31.2357] }
+            ];
 
-                // Update the displayed date and time
-                document.getElementById('datetime').textContent = new Date().toLocaleString();
+            const cityMarkers = cities.map(c => L.marker(c.coord).addTo(map));
+
+            function updateCityMarkers(date) {
+                cityMarkers.forEach((m, i) => {
+                    const c = cities[i];
+                    const times = SunCalc.getTimes(date, c.coord[0], c.coord[1]);
+                    const sunrise = times.sunrise.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    const sunset = times.sunset.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    m.bindPopup(`<b>${c.name}</b><br>Sunrise: ${sunrise}<br>Sunset: ${sunset}`);
+                });
             }
 
-            // 7. Set an interval to update the map
-            // We call the update function every second (1000 milliseconds) to keep the map current.
-            setInterval(updateTerminatorAndSun, 1000);
 
-            // Call it once immediately to draw the initial state without a 1-second delay
-            updateTerminatorAndSun();
+            // 6. Update the map elements for a specific date
+            function updateTerminatorAndSun(date = new Date()) {
+                terminator.setTime(date);
+                const sunLatLng = getSubSolarPoint(date);
+                sunIcon.setLatLng(sunLatLng);
+                document.getElementById('datetime').textContent = date.toLocaleString();
+                updateCityMarkers(date);
+            }
+
+            function getCurrentDate() {
+                const hours = parseInt(timeSlider.value);
+                return new Date(Date.now() + hours * 3600000);
+            }
+
+            timeSlider.addEventListener('input', () => {
+                const d = getCurrentDate();
+                sliderLabel.textContent = d.toLocaleString();
+                updateTerminatorAndSun(d);
+            });
+
+            playButton.addEventListener('click', () => {
+                if (animationInterval) {
+                    clearInterval(animationInterval);
+                    animationInterval = null;
+                    playButton.textContent = 'Play';
+                } else {
+                    animationInterval = setInterval(() => {
+                        let v = parseInt(timeSlider.value) + 1;
+                        if (v > 24) v = -24;
+                        timeSlider.value = v;
+                        timeSlider.dispatchEvent(new Event('input'));
+                    }, 500);
+                    playButton.textContent = 'Pause';
+                }
+            });
+
+            map.on('mousemove', e => {
+                const { lat, lng } = e.latlng;
+                const d = getCurrentDate();
+                try {
+                    const tz = tzlookup(lat, lng);
+                    const local = new Date(d.toLocaleString('en-US', { timeZone: tz }));
+                    const times = SunCalc.getTimes(local, lat, lng);
+                    const isDay = local >= times.sunrise && local <= times.sunset;
+                    const next = isDay ? times.sunset : times.sunrise;
+                    const diff = Math.round((next - local) / 60000);
+                    const hrs = Math.floor(Math.abs(diff) / 60);
+                    const mins = Math.abs(diff) % 60;
+                    const diffStr = `${hrs}h ${mins}m`;
+                    hoverInfo.innerHTML = `Local time: ${local.toLocaleTimeString()}<br>${isDay ? 'Day' : 'Night'}<br>${isDay ? 'Time until sunset:' : 'Time until sunrise:'} ${diffStr}`;
+                    hoverInfo.style.left = (e.containerPoint.x + 15) + 'px';
+                    hoverInfo.style.top = (e.containerPoint.y + 15) + 'px';
+                    hoverInfo.style.display = 'block';
+                } catch (err) {
+                    hoverInfo.style.display = 'none';
+                }
+            });
+
+            map.on('mouseout', () => { hoverInfo.style.display = 'none'; });
+
+            function tick() {
+                if (!animationInterval) {
+                    updateTerminatorAndSun(getCurrentDate());
+                }
+            }
+            setInterval(tick, 1000);
+            updateTerminatorAndSun(getCurrentDate());
         };
     </script>
 </body>
