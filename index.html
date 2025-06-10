@@ -54,6 +54,12 @@
             color: #a0a0a0;
         }
 
+        #datetime {
+            margin-top: 0.25rem;
+            color: #a0a0a0;
+            font-size: 0.9rem;
+        }
+
         /* Map container style */
         #map {
             width: 100%;
@@ -67,6 +73,7 @@
         <header>
             <h1>Real-Time Sun Position</h1>
             <p>Visualizing the day/night terminator with Leaflet.js</p>
+            <p id="datetime"></p>
         </header>
         <div id="map"></div>
     </div>
@@ -125,6 +132,27 @@
                 this.closePopup();
             });
 
+            // 5. Draw the equator and tropics
+            const tropicLat = 23.436;
+            L.polyline([[0, -180], [0, 180]], {
+                color: '#ffffff',
+                weight: 1,
+                dashArray: '4 4',
+                opacity: 0.7
+            }).addTo(map);
+            L.polyline([[tropicLat, -180], [tropicLat, 180]], {
+                color: '#ff5722',
+                weight: 1,
+                dashArray: '4 4',
+                opacity: 0.7
+            }).addTo(map);
+            L.polyline([[-tropicLat, -180], [-tropicLat, 180]], {
+                color: '#ff5722',
+                weight: 1,
+                dashArray: '4 4',
+                opacity: 0.7
+            }).addTo(map);
+
 
             // 5. Create a function to update the map elements
             // This function will be called repeatedly to create a real-time effect.
@@ -137,9 +165,12 @@
                 
                 // Update the sun icon's position on the map
                 sunIcon.setLatLng(sunLatLng);
+
+                // Update the displayed date and time
+                document.getElementById('datetime').textContent = new Date().toLocaleString();
             }
 
-            // 6. Set an interval to update the map
+            // 7. Set an interval to update the map
             // We call the update function every second (1000 milliseconds) to keep the map current.
             setInterval(updateTerminatorAndSun, 1000);
 
