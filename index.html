@@ -62,11 +62,10 @@
 
         /* Style for latitude labels */
         .line-label {
-            background: none;
-            border: none;
-            color: #f0f0f0;
-            font-size: 0.8rem;
-            font-weight: 500;
+            fill: #cccccc;
+            font-size: 0.75rem;
+            dominant-baseline: middle;
+            pointer-events: none;
         }
 
         /* Map container style */
@@ -94,6 +93,8 @@
         
     <!-- Leaflet Terminator Plugin -->
     <script src="https://unpkg.com/@joergdietrich/leaflet.terminator@1.1.0/L.Terminator.js"></script>
+    <!-- Plugin to draw text along polylines -->
+    <script src="https://unpkg.com/leaflet-textpath@1.2.3/leaflet.textpath.js"></script>
 
     <script>
         // FIX: Replaced DOMContentLoaded with window.onload.
@@ -108,9 +109,8 @@
             }).setView([20, 0], 2);
 
             // 2. Add a basemap layer
-            // A dark basemap is chosen here to make the day/night effect more visually appealing.
-            // This is from CartoDB's "dark matter" series.
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            // A light basemap keeps the focus on the day/night effect without appearing too dark
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
                 attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
                 subdomains: 'abcd',
                 maxZoom: 20
@@ -146,19 +146,49 @@
 
             function drawLatitudeLine(lat, color, label) {
                 [-360, 0, 360].forEach(offset => {
-                    L.polyline([[lat, -180 + offset], [lat, 180 + offset]], {
+                    const line = L.polyline([[lat, -180 + offset], [lat, 180 + offset]], {
                         color: color,
                         weight: 1,
                         dashArray: '4 4',
                         opacity: 0.7,
                         interactive: false
                     }).addTo(map);
-                });
 
-                L.marker([lat, 0], {
-                    interactive: false,
-                    icon: L.divIcon({ className: 'line-label', html: label })
-                }).addTo(map);
+                    if (offset === 0) {
+                        line.setText(label, {
+                            center: true,
+                            attributes: { class: 'line-label' }
+                        });
+                    }
+                });
+            }
+
+            // Compute the subsolar point using the same calculations as the terminator plugin
+            function getSubSolarPoint(date = new Date()) {
+                const D2R = Math.PI / 180;
+                const R2D = 180 / Math.PI;
+
+                const julian = date.getTime() / 86400000 + 2440587.5;
+                const n = julian - 2451545.0;
+                const L = (280.460 + 0.9856474 * n) % 360;
+                const g = (357.528 + 0.9856003 * n) % 360;
+                const lambda = L + 1.915 * Math.sin(g * D2R) + 0.02 * Math.sin(2 * g * D2R);
+                const epsilon = 23.43929111 - (n / 36525) * (46.836769 / 3600 - (n / 36525) * (0.0001831 / 3600 + (n / 36525) * (0.00200340 / 3600 - (n / 36525) * (0.576e-6 / 3600 - (n / 36525) * 4.34e-8 / 3600))));
+
+                let alpha = Math.atan(Math.cos(epsilon * D2R) * Math.tan(lambda * D2R)) * R2D;
+                const delta = Math.asin(Math.sin(epsilon * D2R) * Math.sin(lambda * D2R)) * R2D;
+
+                const Lquadrant = Math.floor(lambda / 90) * 90;
+                const RAquadrant = Math.floor(alpha / 90) * 90;
+                alpha = alpha + (Lquadrant - RAquadrant);
+
+                const d = julian - 2451545.0;
+                const gst = (18.697374558 + 24.06570982441908 * d) % 24;
+                let lon = (alpha - gst * 15) % 360;
+                if (lon > 180) lon -= 360;
+                if (lon < -180) lon += 360;
+
+                return [delta, lon];
             }
 
             drawLatitudeLine(0, '#ffffff', 'Equator');
@@ -166,14 +196,14 @@
             drawLatitudeLine(-tropicLat, '#ff5722', 'Tropic of Capricorn');
 
 
-            // 5. Create a function to update the map elements
+            // 6. Create a function to update the map elements
             // This function will be called repeatedly to create a real-time effect.
             function updateTerminatorAndSun() {
                 // Update the terminator to the current time
                 terminator.setTime();
-                
-                // Get the sun's current latitude and longitude from the terminator plugin
-                const sunLatLng = terminator.getLatLng();
+
+                // Compute the current subsolar point
+                const sunLatLng = getSubSolarPoint();
                 
                 // Update the sun icon's position on the map
                 sunIcon.setLatLng(sunLatLng);
