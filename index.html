@@ -225,6 +225,9 @@
             drawLatitudeLine(0, '#ffffff', 'Equator');
             drawLatitudeLine(tropicLat, '#ff5722', 'Tropic of Cancer');
             drawLatitudeLine(-tropicLat, '#ff5722', 'Tropic of Capricorn');
+            const polarLat = 90 - tropicLat;
+            drawLatitudeLine(polarLat, '#03a9f4', 'Arctic Circle');
+            drawLatitudeLine(-polarLat, '#03a9f4', 'Antarctic Circle');
 
             const timeSlider = document.getElementById('timeSlider');
             const sliderLabel = document.getElementById('sliderLabel');
