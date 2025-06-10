@@ -85,6 +85,15 @@
             border-top: 1px solid #444;
         }
 
+        #searchBox,
+        #searchButton {
+            padding: 0.25rem 0.5rem;
+            background-color: #3a3a3a;
+            border: 1px solid #444;
+            color: #f0f0f0;
+            border-radius: 4px;
+        }
+
         #hover-info {
             position: absolute;
             bottom: 1rem;
@@ -94,6 +103,7 @@
             border-radius: 4px;
             font-size: 0.9rem;
             pointer-events: none;
+            z-index: 1000;
         }
     </style>
 </head>
@@ -108,6 +118,8 @@
             <input type="range" id="timeSlider" min="-8760" max="8760" value="0" step="1" style="flex:1">
             <button id="playButton">Play</button>
             <span id="sliderLabel">Now</span>
+            <input type="text" id="searchBox" placeholder="Search place" style="width:160px">
+            <button id="searchButton">Search</button>
         </div>
         <div id="map"></div>
         <div id="hover-info" style="display:none"></div>
@@ -233,27 +245,51 @@
             const sliderLabel = document.getElementById('sliderLabel');
             const playButton = document.getElementById('playButton');
             const hoverInfo = document.getElementById('hover-info');
+            const searchBox = document.getElementById('searchBox');
+            const searchButton = document.getElementById('searchButton');
 
             let animationInterval = null;
 
-            const cities = [
-                { name: 'New York', coord: [40.7128, -74.0060] },
-                { name: 'London', coord: [51.5074, -0.1278] },
-                { name: 'Tokyo', coord: [35.6895, 139.6917] },
-                { name: 'Sydney', coord: [-33.8688, 151.2093] },
-                { name: 'Cairo', coord: [30.0444, 31.2357] }
-            ];
+            let searchMarker = null;
 
-            const cityMarkers = cities.map(c => L.marker(c.coord).addTo(map));
+            async function searchPlace() {
+                const q = searchBox.value.trim();
+                if (!q) return;
+                try {
+                    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}`);
+                    const data = await res.json();
+                    if (data && data.length > 0) {
+                        const place = data[0];
+                        const lat = parseFloat(place.lat);
+                        const lon = parseFloat(place.lon);
+                        if (searchMarker) {
+                            map.removeLayer(searchMarker);
+                        }
+                        searchMarker = L.marker([lat, lon]).addTo(map);
+                        updateSearchMarker(getCurrentDate());
+                        searchMarker.openPopup();
+                        map.setView([lat, lon], 6);
+                    }
+                } catch (err) {
+                    console.error(err);
+                }
+            }
 
-            function updateCityMarkers(date) {
-                cityMarkers.forEach((m, i) => {
-                    const c = cities[i];
-                    const times = SunCalc.getTimes(date, c.coord[0], c.coord[1]);
+            searchButton.addEventListener('click', searchPlace);
+            searchBox.addEventListener('keydown', e => {
+                if (e.key === 'Enter') {
+                    searchPlace();
+                }
+            });
+
+            function updateSearchMarker(date) {
+                if (searchMarker) {
+                    const { lat, lng } = searchMarker.getLatLng();
+                    const times = SunCalc.getTimes(date, lat, lng);
                     const sunrise = times.sunrise.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                     const sunset = times.sunset.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                    m.bindPopup(`<b>${c.name}</b><br>Sunrise: ${sunrise}<br>Sunset: ${sunset}`);
-                });
+                    searchMarker.bindPopup(`Sunrise: ${sunrise}<br>Sunset: ${sunset}`);
+                }
             }
 
 
@@ -263,7 +299,7 @@
                 const sunLatLng = getSubSolarPoint(date);
                 sunIcon.setLatLng(sunLatLng);
                 document.getElementById('datetime').textContent = date.toLocaleString();
-                updateCityMarkers(date);
+                updateSearchMarker(date);
             }
 
             function getCurrentDate() {
