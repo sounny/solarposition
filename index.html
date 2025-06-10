@@ -60,6 +60,15 @@
             font-size: 0.9rem;
         }
 
+        /* Style for latitude labels */
+        .line-label {
+            background: none;
+            border: none;
+            color: #f0f0f0;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
         /* Map container style */
         #map {
             width: 100%;
@@ -132,26 +141,29 @@
                 this.closePopup();
             });
 
-            // 5. Draw the equator and tropics
+            // 5. Draw the equator and tropics with labels
             const tropicLat = 23.436;
-            L.polyline([[0, -180], [0, 180]], {
-                color: '#ffffff',
-                weight: 1,
-                dashArray: '4 4',
-                opacity: 0.7
-            }).addTo(map);
-            L.polyline([[tropicLat, -180], [tropicLat, 180]], {
-                color: '#ff5722',
-                weight: 1,
-                dashArray: '4 4',
-                opacity: 0.7
-            }).addTo(map);
-            L.polyline([[-tropicLat, -180], [-tropicLat, 180]], {
-                color: '#ff5722',
-                weight: 1,
-                dashArray: '4 4',
-                opacity: 0.7
-            }).addTo(map);
+
+            function drawLatitudeLine(lat, color, label) {
+                [-360, 0, 360].forEach(offset => {
+                    L.polyline([[lat, -180 + offset], [lat, 180 + offset]], {
+                        color: color,
+                        weight: 1,
+                        dashArray: '4 4',
+                        opacity: 0.7,
+                        interactive: false
+                    }).addTo(map);
+                });
+
+                L.marker([lat, 0], {
+                    interactive: false,
+                    icon: L.divIcon({ className: 'line-label', html: label })
+                }).addTo(map);
+            }
+
+            drawLatitudeLine(0, '#ffffff', 'Equator');
+            drawLatitudeLine(tropicLat, '#ff5722', 'Tropic of Cancer');
+            drawLatitudeLine(-tropicLat, '#ff5722', 'Tropic of Capricorn');
 
 
             // 5. Create a function to update the map elements
