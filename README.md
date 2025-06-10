@@ -18,3 +18,7 @@ The map will update automatically every second to show the sun's location and th
 ## Hosting
 
 This site is designed to work with GitHub Pages. Simply push the code to a repository's `main` or `gh-pages` branch and enable Pages in your repository settings.
+
+## Live Demo
+
+You can try the application online at [https://sounny.github.io/solarposition/](https://sounny.github.io/solarposition/).
