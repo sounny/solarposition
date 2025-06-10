@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sun Position & Day/Night Terminator with Leaflet</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossorigin="" />
+
+    <!-- Google Fonts for a nice, clean look -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* Basic styles for the page */
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            font-family: 'Inter', sans-serif;
+            background-color: #1a1a1a; /* Dark background for the page */
+            color: #f0f0f0;
+            overflow: hidden; /* Prevent scrollbars */
+        }
+
+        /* Container for the entire layout */
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        /* Header style */
+        header {
+            padding: 1rem 1.5rem;
+            background-color: #2c2c2c;
+            border-bottom: 1px solid #444;
+            text-align: center;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+        
+        header p {
+            margin: 0.25rem 0 0;
+            color: #a0a0a0;
+        }
+
+        /* Map container style */
+        #map {
+            width: 100%;
+            flex-grow: 1; /* The map will fill the remaining vertical space */
+            background-color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Real-Time Sun Position</h1>
+            <p>Visualizing the day/night terminator with Leaflet.js</p>
+        </header>
+        <div id="map"></div>
+    </div>
+
+    <!-- Leaflet JavaScript -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""></script>
+        
+    <!-- Leaflet Terminator Plugin -->
+    <script src="https://unpkg.com/leaflet.terminator@1.0.0/L.Terminator.js"></script>
+
+    <script>
+        // FIX: Replaced DOMContentLoaded with window.onload.
+        // The window.onload event fires after the entire page, including all dependent resources
+        // like scripts, has finished loading. This is a more robust way to prevent race 
+        // conditions where our script tries to use the plugin before it's available.
+        window.onload = function () {
+            // 1. Initialize the Leaflet map
+            // The map is centered at [0, 0] with a low zoom level to show the whole world.
+            const map = L.map('map', {
+                worldCopyJump: true // Ensures a smooth experience when panning across the 180th meridian
+            }).setView([20, 0], 2);
+
+            // 2. Add a basemap layer
+            // A dark basemap is chosen here to make the day/night effect more visually appealing.
+            // This is from CartoDB's "dark matter" series.
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+                subdomains: 'abcd',
+                maxZoom: 20
+            }).addTo(map);
+
+            // 3. Initialize the Terminator plugin
+            // This plugin calculates the polygon representing night and the location of the sun.
+            const terminator = L.terminator({
+                // You can customize the appearance of the night region
+                fillOpacity: 0.4,
+                color: '#000000'
+            }).addTo(map);
+
+            // 4. Create a custom icon for the sun
+            // Using a simple CircleMarker is an easy and effective way to represent the sun's position.
+            const sunIcon = L.circleMarker([0, 0], {
+                radius: 10,
+                color: '#ffeb3b',      // A bright yellow color for the sun's outline
+                fillColor: '#fbc02d', // A slightly darker yellow for the fill
+                fillOpacity: 1,
+                weight: 2
+            }).addTo(map)
+            .bindPopup("<b>Sun's Position</b><br>This is the subsolar point, where the sun is directly overhead.")
+            .on('mouseover', function (e) {
+                this.openPopup();
+            })
+            .on('mouseout', function (e) {
+                this.closePopup();
+            });
+
+
+            // 5. Create a function to update the map elements
+            // This function will be called repeatedly to create a real-time effect.
+            function updateTerminatorAndSun() {
+                // Update the terminator to the current time
+                terminator.setTime();
+                
+                // Get the sun's current latitude and longitude from the terminator plugin
+                const sunLatLng = terminator.getLatLng();
+                
+                // Update the sun icon's position on the map
+                sunIcon.setLatLng(sunLatLng);
+            }
+
+            // 6. Set an interval to update the map
+            // We call the update function every second (1000 milliseconds) to keep the map current.
+            setInterval(updateTerminatorAndSun, 1000);
+
+            // Call it once immediately to draw the initial state without a 1-second delay
+            updateTerminatorAndSun();
+        };
+    </script>
+</body>
+</html>
