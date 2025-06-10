@@ -96,12 +96,10 @@
 
         #hover-info {
             position: absolute;
-            bottom: 1rem;
-            left: 1rem;
             background-color: rgba(0, 0, 0, 0.6);
-            padding: 0.5rem 0.75rem;
+            padding: 0.25rem 0.5rem;
             border-radius: 4px;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             pointer-events: none;
             z-index: 1000;
         }
@@ -251,6 +249,7 @@
             let animationInterval = null;
 
             let searchMarker = null;
+            let userMarker = null;
 
             async function searchPlace() {
                 const q = searchBox.value.trim();
@@ -269,6 +268,21 @@
                         updateSearchMarker(getCurrentDate());
                         searchMarker.openPopup();
                         map.setView([lat, lon], 6);
+                    }
+                } catch (err) {
+                    console.error(err);
+                }
+            }
+
+            async function locateUser() {
+                try {
+                    const res = await fetch('https://ipapi.co/json/');
+                    const data = await res.json();
+                    const lat = parseFloat(data.latitude);
+                    const lon = parseFloat(data.longitude);
+                    if (!isNaN(lat) && !isNaN(lon)) {
+                        userMarker = L.marker([lat, lon]).addTo(map).bindPopup('You are here');
+                        map.setView([lat, lon], 4);
                     }
                 } catch (err) {
                     console.error(err);
@@ -342,7 +356,8 @@
                     const hrs = Math.floor(Math.abs(diff) / 60);
                     const mins = Math.abs(diff) % 60;
                     const diffStr = `${hrs}h ${mins}m`;
-                    hoverInfo.innerHTML = `Local time: ${local.toLocaleTimeString()}<br>${isDay ? 'Day' : 'Night'}<br>${isDay ? 'Time until sunset:' : 'Time until sunrise:'} ${diffStr}`;
+                    const gmt = d.toLocaleTimeString([], { timeZone: 'UTC' });
+                    hoverInfo.innerHTML = `Lat: ${lat.toFixed(4)}, Lon: ${lng.toFixed(4)}<br>Local time: ${local.toLocaleTimeString()}<br>GMT: ${gmt}<br>${isDay ? 'Day' : 'Night'}<br>${isDay ? 'Time until sunset:' : 'Time until sunrise:'} ${diffStr}`;
                     hoverInfo.style.left = (e.containerPoint.x + 15) + 'px';
                     hoverInfo.style.top = (e.containerPoint.y + 15) + 'px';
                     hoverInfo.style.display = 'block';
@@ -360,6 +375,7 @@
             }
             setInterval(tick, 1000);
             updateTerminatorAndSun(getCurrentDate());
+            locateUser();
         };
     </script>
 </body>
